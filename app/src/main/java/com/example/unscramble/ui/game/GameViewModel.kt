@@ -1,6 +1,5 @@
 package com.example.unscramble.ui.game
 
-import android.app.Application
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import com.example.unscramble.data.getWords
@@ -8,7 +7,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-class GameViewModel : ViewModel() {
+// El context debe llamarse dentro una función Composable
+// Por eso en el GameViewModel tenemos que pasarlo por parámetro
+// Dentro la función Composable en la que llamemos al GameViewModel tenemos que poner ...
+// val context = LocalContext.current
+class GameViewModel(context: Context) : ViewModel() {
 
     // Game UI state
     // Setter de uiState
@@ -31,7 +34,7 @@ class GameViewModel : ViewModel() {
     private var usedWords: MutableSet<String> = mutableSetOf()
 
     init {
-        resetGame()
+        resetGame(context)
     }
 
     // Selecciona 1 palabra aleatoria, sin repetir
