@@ -1,17 +1,26 @@
 package com.example.unscramble.ui.game
 
-import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
-import com.example.unscramble.data.getWords
+import com.example.unscramble.data.SCORE_INCREASE
+import com.example.unscramble.data.allSpanishWords
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 // El context debe llamarse dentro una función Composable
 // Por eso en el GameViewModel tenemos que pasarlo por parámetro
 // Dentro la función Composable en la que llamemos al GameViewModel tenemos que poner ...
 // val context = LocalContext.current
-class GameViewModel(context: Context) : ViewModel() {
+class GameViewModel : ViewModel() {
+
+    // Este estado va cambiando según vaya escribiendo
+    var userGuess by mutableStateOf("")
+        // Solo permite cambiar el valor de forma interna
+        private set
 
     // Game UI state
     // Setter de uiState
@@ -25,7 +34,7 @@ class GameViewModel(context: Context) : ViewModel() {
     // Si actualizas _count -> count se actualiza también
     // Getter -> Solo muestra el valor de _count
     val count
-        get() = "Mi contador es $_count"
+        get() = _count
 
     // lateinit -> es una variable que se va a inicializar más tarde
     private lateinit var currentWord: String
@@ -34,22 +43,22 @@ class GameViewModel(context: Context) : ViewModel() {
     private var usedWords: MutableSet<String> = mutableSetOf()
 
     init {
-        resetGame(context)
+        resetGame()
     }
 
     // Selecciona 1 palabra aleatoria, sin repetir
-    private fun pickRandomWordAndShuffle(context: Context): String {
+    private fun pickRandomWordAndShuffle(): String {
         // Continue picking up a new random word until you get one that hasn't been used before
-        currentWord = getWords(context).random()
+        currentWord = allSpanishWords.random()
         if (usedWords.contains(currentWord)) {
-            return pickRandomWordAndShuffle(context)
+            return pickRandomWordAndShuffle()
         } else {
             usedWords.add(currentWord)
             return shuffleCurrentWord(currentWord)
         }
     }
 
-    // Baraja las letras de la palabra
+    // Baraja las letras de la palabra asignada
     private fun shuffleCurrentWord(word: String): String {
         val tempWord = word.toCharArray()
         // Scramble the word
@@ -61,10 +70,45 @@ class GameViewModel(context: Context) : ViewModel() {
     }
 
     // Reinicia el juego, es decir borra la lista de palabras usadas
-    fun resetGame(context: Context) {
+    fun resetGame() {
         usedWords.clear()
-        _uiState.value = GameUiState(currentScrambledWord = pickRandomWordAndShuffle(context))
+        // Asigna una nueva palabra de forma aleatoria y baraja sus letras
+        _uiState.value = GameUiState(currentScrambledWord = pickRandomWordAndShuffle())
     }
+
+    // Nos permite cambiar el valor de userGuess que tiene el setter privado
+    fun updateUserGuess(guessedWord: String) {
+        userGuess = guessedWord
+    }
+
+    fun checkUserGuess() {
+        if (userGuess.equals(currentWord, ignoreCase = true)) {
+            // Coge la puntuación actual y le incrementa los puntos
+            val newScore = uiState.value.score.plus(SCORE_INCREASE)
+
+            // Actualiza el estado de los puntos y selecciona una palabra nueva aleatoria
+            updateGameState(newScore)
+        } else {
+            // User's guess is wrong, show an error
+            _uiState.update { currentState ->
+                currentState.copy(isGuessedWordWrong = true)
+            }
+        }
+        // Reset user guess
+        updateUserGuess("")
+    }
+
+    private fun updateGameState(score: Int) {
+        _uiState.update { currentState ->
+            currentState.copy(
+                score = score,
+                isGuessedWordWrong = false,
+                currentScrambledWord = pickRandomWordAndShuffle(),
+                currentWordCount = currentState.currentWordCount.inc()
+            )
+        }
+    }
+
 
     // Ejemplo de actualización
     /*

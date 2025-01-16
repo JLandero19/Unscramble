@@ -16,18 +16,15 @@
 
 package com.example.unscramble.data
 
-import android.content.Context
-import com.example.unscramble.utils.getCurrentLanguage
-
 const val MAX_NO_OF_WORDS = 10
 const val SCORE_INCREASE = 20
 
-val getWords : (Context) -> Set<String> = { context ->
-    when (getCurrentLanguage(context)) {
-        "ES" -> allSpanishWords
-        else -> allWords
-    }
-}
+//val getWords : (Context) -> Set<String> = { context ->
+//    when (getCurrentLanguage(context)) {
+//        "ES" -> allSpanishWords
+//        else -> allWords
+//    }
+//}
 
 val allWords: Set<String> =
     setOf(
