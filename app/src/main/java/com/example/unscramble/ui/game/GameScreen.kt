@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.unscramble.R
+import com.example.unscramble.data.MAX_NO_OF_WORDS
 import com.example.unscramble.ui.theme.UnscrambleTheme
 
 @Composable
@@ -67,7 +68,17 @@ fun GameScreen(
     // Se mantiene a la escucha esperando un cambio de estado
     val gameUiState by gameViewModel.uiState.collectAsState()
 
+    // Padding por defecto
     val mediumPadding = dimensionResource(R.dimen.padding_medium)
+
+    if (gameUiState.isGameOver) {
+        FinalScoreDialog(
+            score = gameUiState.score,
+            onPlayAgain = {
+                gameViewModel.resetGame()
+            },
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -116,7 +127,7 @@ fun GameScreen(
             }
 
             OutlinedButton(
-                onClick = { },
+                onClick = { gameViewModel.skipWord() },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(

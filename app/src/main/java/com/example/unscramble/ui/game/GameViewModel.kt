@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import com.example.unscramble.data.MAX_NO_OF_WORDS
 import com.example.unscramble.data.SCORE_INCREASE
 import com.example.unscramble.data.allSpanishWords
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -73,7 +74,12 @@ class GameViewModel : ViewModel() {
     fun resetGame() {
         usedWords.clear()
         // Asigna una nueva palabra de forma aleatoria y baraja sus letras
-        _uiState.value = GameUiState(currentScrambledWord = pickRandomWordAndShuffle())
+        _uiState.value = GameUiState(
+            currentScrambledWord = pickRandomWordAndShuffle(),
+            isGameOver = false,
+            score = 0,
+            isGuessedWordWrong = false
+        )
     }
 
     // Nos permite cambiar el valor de userGuess que tiene el setter privado
@@ -98,17 +104,27 @@ class GameViewModel : ViewModel() {
         updateUserGuess("")
     }
 
+    fun skipWord() {
+        _uiState.update { currentState ->
+            currentState.copy(
+                currentScrambledWord = pickRandomWordAndShuffle(),
+                currentWordCount = currentState.currentWordCount.inc(),
+                isGameOver = currentState.currentWordCount >= MAX_NO_OF_WORDS
+            )
+        }
+    }
+
     private fun updateGameState(score: Int) {
         _uiState.update { currentState ->
             currentState.copy(
                 score = score,
                 isGuessedWordWrong = false,
                 currentScrambledWord = pickRandomWordAndShuffle(),
-                currentWordCount = currentState.currentWordCount.inc()
+                currentWordCount = currentState.currentWordCount.inc(),
+                isGameOver = currentState.currentWordCount >= MAX_NO_OF_WORDS
             )
         }
     }
-
 
     // Ejemplo de actualización
     /*
@@ -118,5 +134,4 @@ class GameViewModel : ViewModel() {
         }
     }
     */
-
 }
