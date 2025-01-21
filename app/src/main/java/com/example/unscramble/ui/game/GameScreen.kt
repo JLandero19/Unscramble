@@ -56,7 +56,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.unscramble.R
-import com.example.unscramble.data.MAX_NO_OF_WORDS
 import com.example.unscramble.ui.theme.UnscrambleTheme
 
 @Composable
