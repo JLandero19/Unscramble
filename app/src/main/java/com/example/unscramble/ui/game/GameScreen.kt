@@ -15,7 +15,7 @@
  */
 package com.example.unscramble.ui.game
 
-import android.app.Activity
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
@@ -32,6 +33,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.MaterialTheme.shapes
 import androidx.compose.material3.MaterialTheme.typography
@@ -46,7 +49,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -61,7 +63,8 @@ import com.example.unscramble.ui.theme.UnscrambleTheme
 @Composable
 fun GameScreen(
     // Por defecto llama al padre de GameViewModel
-    gameViewModel: GameViewModel = viewModel()
+    // Esto hace que mi ViewModel accede a nuestro repositorio de las preferencias
+    gameViewModel: GameViewModel = viewModel(factory = GameViewModel.Factory)
 ) {
     // Está accediendo al uiState público
     // Se mantiene a la escucha esperando un cambio de estado
@@ -69,6 +72,15 @@ fun GameScreen(
 
     // Padding por defecto
     val mediumPadding = dimensionResource(R.dimen.padding_medium)
+
+    if(gameUiState.isLoading) {
+        CircularProgressIndicator(
+            modifier = Modifier.width(64.dp),
+            color = MaterialTheme.colorScheme.secondary,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+        )
+        return
+    }
 
     if (gameUiState.isGameOver) {
         FinalScoreDialog(
@@ -98,6 +110,7 @@ fun GameScreen(
             userGuess = gameViewModel.userGuess,
             isGuessWrong = gameUiState.isGuessedWordWrong,
             wordCounter = gameUiState.currentWordCount,
+            maxNoCountWord = gameUiState.levelGame,
             // updateUserGuess -> es una función guarda la suposición del usuario
             onUserGuessChanged = { gameViewModel.updateUserGuess(it) },
             onKeyboardDone = { gameViewModel.checkUserGuess() },
@@ -159,6 +172,7 @@ fun GameLayout(
     userGuess: String,
     isGuessWrong: Boolean,
     wordCounter: Int,
+    maxNoCountWord: Int = 10,
     onUserGuessChanged: (String) -> Unit,
     onKeyboardDone: () -> Unit,
     currentScrambledWord: String,
@@ -181,7 +195,7 @@ fun GameLayout(
                     .background(colorScheme.surfaceTint)
                     .padding(horizontal = 10.dp, vertical = 4.dp)
                     .align(alignment = Alignment.End),
-                text = stringResource(R.string.word_count, wordCounter),
+                text = stringResource(R.string.word_count, wordCounter, maxNoCountWord),
                 style = typography.titleMedium,
                 color = colorScheme.onPrimary
             )
@@ -234,7 +248,7 @@ private fun FinalScoreDialog(
     onPlayAgain: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val activity = (LocalContext.current as Activity)
+    val activity = LocalActivity.current
 
     AlertDialog(
         onDismissRequest = {
@@ -248,7 +262,7 @@ private fun FinalScoreDialog(
         dismissButton = {
             TextButton(
                 onClick = {
-                    activity.finish()
+                    activity?.finish()
                 }
             ) {
                 Text(text = stringResource(R.string.exit))
