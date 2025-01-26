@@ -123,7 +123,8 @@ class GameViewModel(
                 levelGame = levelGame,
                 currentWordCount = 1,
                 isGameOver = false,
-                isLoading = false
+                isLoading = false,
+                isSettingsDialogVisible = false
             )
         }
     }
@@ -209,6 +210,22 @@ class GameViewModel(
                 currentScrambledWord = pickRandomWordAndShuffle(currentState.language),
                 currentWordCount = currentState.currentWordCount.inc(),
                 isGameOver = currentState.currentWordCount >= currentState.levelGame
+            )
+        }
+    }
+
+    fun showSettings() {
+        _uiState.update { currentState ->
+            currentState.copy(
+                isSettingsDialogVisible = true,
+            )
+        }
+    }
+
+    fun hideSettings() {
+        _uiState.update { currentState ->
+            currentState.copy(
+                isSettingsDialogVisible = false,
             )
         }
     }

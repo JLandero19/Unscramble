@@ -13,5 +13,6 @@ data class GameUiState(
     val levelGame: Int = LevelGame.EASY.level,
     val maxNoWords: Int = LevelGame.EASY.level,
     val isLoading: Boolean = true,
-    val userMessages: String = ""
+    val userMessages: String = "",
+    val isSettingsDialogVisible: Boolean = false
 )
