@@ -16,15 +16,7 @@
 
 package com.example.unscramble.data
 
-//const val MAX_NO_OF_WORDS = 10
 const val SCORE_INCREASE = 20
-
-//val getWords : (Context) -> Set<String> = { context ->
-//    when (getCurrentLanguage(context)) {
-//        "ES" -> allSpanishWords
-//        else -> allWords
-//    }
-//}
 
 val allWords: Set<String> =
     setOf(
@@ -209,7 +201,7 @@ val allWords: Set<String> =
         "zeal"
     )
 
-val allSpanishWords: Set<String> = setOf(
+val allSpanishWords: Set<String> = sortedSetOf(
     // Traducciones de allWords
     "abierto",
     "amable",

@@ -1,8 +1,8 @@
 package com.example.unscramble.data
 
 data class UserPreferences(
-    val language: String = "en",
-    val levelGame: Int = 5,
+    val language: String,
+    val levelGame: Int
 ) {
     companion object {
         const val SETTINGS_FILE = "settings"

@@ -28,8 +28,9 @@
     <string name="play_again">Play Again</string>
     <string name="wrong_guess">Wrong Guess!</string>
     <string name="settings">Settings</string>
-    <string name="cancel">Cancel</string>
-    <string name="save">Save</string>
-    <string name="select_game_level">Select level game:</string>
     <string name="select_language">Select language:</string>
+    <string name="select_game_level">Select level game:</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="no_words_found">No words found</string>
 </resources>

@@ -1,4 +1,4 @@
-package com.example.unscramble.ui.game
+package com.example.unscramble.ui.Game
 
 import android.util.Log
 import androidx.compose.runtime.getValue
@@ -17,136 +17,236 @@ import com.example.unscramble.data.UserPreferences
 import com.example.unscramble.data.UserPreferencesRepository
 import com.example.unscramble.data.allSpanishWords
 import com.example.unscramble.data.allWords
+import com.example.unscramble.datamodel.WordModel
+import com.example.unscramble.localdatabase.WordsDAO
+import com.example.unscramble.repository.WordsRepository
 import com.example.unscramble.unscramblerelease.UnscrambleReleaseApplication
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.count
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-// El context debe llamarse dentro una función Composable
-// Por eso en el GameViewModel tenemos que pasarlo por parámetro
-// Dentro la función Composable en la que llamemos al GameViewModel tenemos que poner ...
-// val context = LocalContext.current
+@OptIn(ExperimentalCoroutinesApi::class)
 class GameViewModel(
-    private val userPreferencesRepository: UserPreferencesRepository
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val wordsRepository: WordsRepository
 ) : ViewModel() {
 
     companion object {
-        // Se crea una instancia de Factory del GameViewModel
         val Factory: ViewModelProvider.Factory = viewModelFactory {
-            // Funciona igual que init {}
             initializer {
-                // Esta variable se le está permitiendo acceder UnscrambleReleaseApplication
                 val application = (this[APPLICATION_KEY] as UnscrambleReleaseApplication)
-                // Le estamos pasando las preferencias del repositorio al GameViewModel
-                GameViewModel(application.userPreferencesRepository)
+                GameViewModel(application.userPreferencesRepository, application.wordsRepository)
             }
         }
     }
 
-    // Este estado va cambiando según vaya escribiendo
-    var userGuess by mutableStateOf("")
-        // Solo permite cambiar el valor de forma interna
-        private set
+    /*
+    Si el estado solamente depende del origen de datos, como en el caso de que toma un flujo y este se modifica solamente desde este origen,
+    se puede convertir el flujo en un StateFlow, para ello hacemos uso de StateIn.
 
-    // Game UI state
-    // Setter de uiState
+    val uiState: StateFlow<GameUiState> = userPreferencesRepository.userPrefs
+       .map { preferences ->
+            GameUiState(
+                language = preferences.language,
+                levelGame = preferences.levelGame,
+                isLoading = false,
+                errorMessage = null
+            )
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = GameUiState()
+        )
+     */
+
+    val getEnglishWords : Flow<List<WordModel>> = wordsRepository.getAllWordsByLanguage(Language.ENGLISH.toString())
+    val getSpanishWords : Flow<List<WordModel>> = wordsRepository.getAllWordsByLanguage(Language.SPANISH.toString())
+
+
+    //Estado de la interfaz de usuario.
     private val _uiState = MutableStateFlow(GameUiState())
-    // Getter de uiState
     val uiState: StateFlow<GameUiState> = _uiState.asStateFlow()
 
-    // Ejemplo de encapsulamiento en Kotlin
-    // Setter -> Solo lo utilizamos para cambiar el valor
-//    private var _count = 0
-    // Si actualizas _count -> count se actualiza también
-    // Getter -> Solo muestra el valor de _count
-//    val count
-//        get() = _count
+    //Valor de la palabra ingresada por el usuario.
+    var userGuess by mutableStateOf("")
+        private set
 
-    // lateinit -> es una variable que se va a inicializar más tarde
-    private lateinit var currentWord: String
-
-    // Palabras usadas
-    private var usedWords: MutableSet<String> = mutableSetOf()
-
+    //Bloque que se ejecuta con la creación del objeto.
     init {
-        getSettings() // Recoge la configuración
-        //setSettings(Language.SPANISH.language, LevelGame.HARD.level) // Crea la configuración del usuario
-        //resetGame()
+        viewModelScope.launch {
+            // Flujo de estado transformado de lista de WordModel a lista de strings.
+            val wordsFlow: StateFlow<List<String>> =
+                userPreferencesRepository.userPrefs
+                    // Toma el flujo de preferencias y lo mapea a un flujo de lista de WordModel.
+                    // Cada ver que haya un cambio en las preferencias, se obtendrán nuevos WordModel.
+                    .flatMapLatest { preferences ->
+                        wordsRepository.getSomeRandomWordsByLanguage(
+                            preferences.language,
+                            preferences.levelGame
+                        )
+                    }
+                    // Transforma la lista de WordModel en una lista de strings.
+                    .map { wordList ->
+                        wordList.map { it.title }
+                    }
+                    // Captura excepciones y actualiza el estado de la interfaz de usuario.
+                    .catch { e ->
+                        _uiState.update { currentState ->
+                            currentState.copy(
+                                userMessage = UserMessage.ERROR_GETTING_WORDS,
+                                isLoading = false
+                            )
+                        }
+                        emit(emptyList()) // Emitir una lista vacía en caso de error
+                    }
+                    // Convierte el flujo en un flujo de estado con la lista de palabras.
+                    .stateIn(
+                        scope = viewModelScope,
+                        started = SharingStarted.WhileSubscribed(5000),
+                        initialValue = emptyList()
+                    )
+
+            // Combina preferencias y lista de palabras en un solo flujo de estado.
+            userPreferencesRepository.userPrefs
+                .combine(wordsFlow) { preferences, words ->
+                    Pair(preferences, words)
+                }
+                // Inicialmente muestra un estado de carga.
+                .onStart {
+                    _uiState.update { currentState ->
+                        currentState.copy(isLoading = true)
+                    }
+                }
+                // Captura excepciones y actualiza el estado de la interfaz de usuario.
+                .catch { e ->
+                    _uiState.update { currentState ->
+                        currentState.copy(
+                            userMessage = UserMessage.ERROR_ACCESSING_DATASTORE,
+                            isLoading = false
+                        )
+                    }
+                }
+                // Actualiza el estado de la interfaz de usuario con las preferencias y las palabras.
+                .collect { (preferences, words) ->
+                    Log.d("GameViewModel", "Entra a CollectCombined: $words")
+                    // Si no hay palabras, actualiza el estado de la interfaz de usuario con un mensaje de error.
+                    if (words.isEmpty()) {
+                        _uiState.update { currentState ->
+                            currentState.copy(
+                                userMessage = UserMessage.ERROR_GETTING_WORDS,
+                                isLoading = false
+                            )
+                        }
+                    } else {
+                        //Actualiza el estado de la interfaz con las palabras del flujo y las opciones de preferencia.
+                        updateState(words.toMutableList(), preferences.language, preferences.levelGame)
+                    }
+                }
+            if (wordsRepository.getAllWords.count() <= 0) {
+                // Me inserta en la base de datos las palabras
+                insertWords(allWords)
+                insertWords(allSpanishWords, "es")
+            }
+        }
+
+    }
+    // Me inserta las palabras en la base de datos
+    private fun insertWords(allWords: Set<String>, language: String = "en") {
+        viewModelScope.launch {
+            val wordList = allWords.map { WordModel(title = it, language = language) }
+            wordsRepository.insertWordList(wordList)
+        }
+
     }
 
-    // Este metodo es para los ajustes del usuario nivel y lenguaje
+    private fun updateState(wordsGame: MutableList<String>,language: String, levelGame: Int) {
+        val nextWord = if(wordsGame.isNotEmpty()) wordsGame.removeAt(0) else ""
+        _uiState.value = if(wordsGame.isNotEmpty())
+            GameUiState(
+                wordsGame = wordsGame,
+                currentWord = nextWord,
+                currentScrambledWord = shuffleCurrentWord(nextWord),
+                usedWords = mutableListOf(nextWord),
+                language = language,
+                levelGame = levelGame,
+                isLoading = false,
+            ) else GameUiState(isGameOver = true)
+        Log.d("GameViewModel", uiState.value.toString())
+    }
+
+    fun resetGame() {
+        //updateStateSettings(uiState.value.language, uiState.value.levelGame)
+        viewModelScope.launch {
+            val wordList = wordsRepository.getOnceSomeRandomWordsByLanguage(uiState.value.language, uiState.value.levelGame)
+            updateState(wordList.map { it.title }.toMutableList(), uiState.value.language, uiState.value.levelGame)
+        }
+    }
+
+    private fun updateGameState(updatedScore: Int) {
+        if (uiState.value.wordsGame.isEmpty()){
+            //Last round in the game, update isGameOver to true, don't pick a new word
+            _uiState.update { currentState ->
+                currentState.copy(
+                    isGuessedWordWrong = false,
+                    score = updatedScore,
+                    isGameOver = true
+                )
+            }
+        } else {
+            _uiState.update { currentState ->
+                val nextWord = currentState.wordsGame.first()
+                currentState.copy(
+                    wordsGame = currentState.wordsGame.apply { removeAt(0) },
+                    isGuessedWordWrong = false,
+                    usedWords = currentState.usedWords.apply { add(nextWord) },
+                    currentWord = nextWord,
+                    currentScrambledWord = shuffleCurrentWord(nextWord),
+                    score = updatedScore
+                )
+            }
+        }
+        Log.d("GameViewModel", uiState.value.toString())
+    }
+
     fun setSettings(language: String = Language.ENGLISH.language, levelGame: Int = LevelGame.EASY.level) {
-        // Comienza la corrutina para settear la configuración
         viewModelScope.launch {
             try {
-                // Guarda la configuración desde el repositorio de preferencias del usuario
                 userPreferencesRepository.savePreferences(
-                    // Este sería el parametro que recibe savePreferences
                     UserPreferences(language, levelGame)
                 )
-
-                // Actualiza el estado
-                updateStateSettings(language,levelGame)
             } catch (e: Exception) {
-                Log.e("GameViewModel", "Error al guardar en DataStore")
-                _uiState.update {
-                    it.copy(
-                        // Esto es para guardar el error para poder mostrarlo al usuario
-                        userMessages = "Error al guardar en DataStore"
+                _uiState.update { currentState ->
+                    currentState.copy(
+                        userMessage = UserMessage.ERROR_WRITING_DATASTORE
                     )
                 }
             }
-
         }
     }
 
-    private fun getSettings() {
-        viewModelScope.launch {
-            // Recoge los valores el fichero
-            userPreferencesRepository.userPrefs.collect { preferences ->
-                // Actualiza la configuración y el estado del usuario
-                updateStateSettings(preferences.language, preferences.levelGame)
-            }
-        }
-    }
-
-    // Actualiza los settings y reinicia el juego
-    private fun updateStateSettings(language: String, levelGame: Int) {
-        usedWords.clear()
-        _uiState.update { currentState ->
-            currentState.copy(
-                currentScrambledWord = pickRandomWordAndShuffle(language),
-                maxNoWords = levelGame, // El número de palabras es el nivel del juego
-                language = language,
-                levelGame = levelGame,
-                currentWordCount = 1,
-                isGameOver = false,
-                isLoading = false,
-                isSettingsDialogVisible = false
-            )
-        }
-    }
-
-    // Selecciona 1 palabra aleatoria, sin repetir
-    private fun pickRandomWordAndShuffle(language: String): String {
+    private fun pickRandomWord(language: String): String {
         // Continue picking up a new random word until you get one that hasn't been used before
-        currentWord =
-            if (language == "es") {
-                allSpanishWords.random()
-            } else {
-                allWords.random()
-            }
-        if (usedWords.contains(currentWord)) {
-            return pickRandomWordAndShuffle(language)
+        val word = if(language == Language.SPANISH.language) allSpanishWords.random() else allWords.random()
+        return if (uiState.value.usedWords.contains(word)) {
+            pickRandomWord(language)
         } else {
-            usedWords.add(currentWord)
-            return shuffleCurrentWord(currentWord)
+            word
         }
     }
 
-    // Baraja las letras de la palabra asignada
     private fun shuffleCurrentWord(word: String): String {
         val tempWord = word.toCharArray()
         // Scramble the word
@@ -157,33 +257,32 @@ class GameViewModel(
         return String(tempWord)
     }
 
-    // Reinicia el juego, es decir borra la lista de palabras usadas
-    fun resetGame() {
-        updateStateSettings(uiState.value.language, uiState.value.levelGame)
-//        usedWords.clear()
-//        // Asigna una nueva palabra de forma aleatoria y baraja sus letras
-//        _uiState.value = GameUiState(
-//            currentScrambledWord = pickRandomWordAndShuffle(),
-//            isGameOver = false,
-//            score = 0,
-//            isGuessedWordWrong = false
-//        )
+    private fun updateStateSettings(language: String, levelGame: Int) {
+        val word = pickRandomWord(language)
+        _uiState.update { currentState ->
+            currentState.copy(
+                currentWord = word,
+                currentScrambledWord = shuffleCurrentWord(word),
+                usedWords = mutableListOf(word),
+                language = language,
+                levelGame = levelGame,
+                score = 0,
+                isLoading = false,
+                isGameOver = false
+            )
+        }
     }
 
-    // Nos permite cambiar el valor de userGuess que tiene el setter privado
     fun updateUserGuess(guessedWord: String) {
         userGuess = guessedWord
     }
 
     fun checkUserGuess() {
-        if (userGuess.equals(currentWord, ignoreCase = true)) {
-            // Coge la puntuación actual y le incrementa los puntos
-            val newScore = uiState.value.score.plus(SCORE_INCREASE)
-
-            // Actualiza el estado de los puntos y selecciona una palabra nueva aleatoria
-            updateGameState(newScore)
+        if (userGuess.equals(uiState.value.currentWord, ignoreCase = true)) {
+            val updatedScore = _uiState.value.score.plus(SCORE_INCREASE)
+            updateGameState(updatedScore)
         } else {
-            // User's guess is wrong, show an error
+            // Si falla muestra un error.
             _uiState.update { currentState ->
                 currentState.copy(isGuessedWordWrong = true)
             }
@@ -193,49 +292,8 @@ class GameViewModel(
     }
 
     fun skipWord() {
-        _uiState.update { currentState ->
-            currentState.copy(
-                currentScrambledWord = pickRandomWordAndShuffle(currentState.language),
-                currentWordCount = currentState.currentWordCount.inc(),
-                isGameOver = currentState.currentWordCount >= currentState.levelGame
-            )
-        }
+        updateGameState(_uiState.value.score)
+        //Borra el texto.
+        updateUserGuess("")
     }
-
-    private fun updateGameState(score: Int) {
-        _uiState.update { currentState ->
-            currentState.copy(
-                score = score,
-                isGuessedWordWrong = false,
-                currentScrambledWord = pickRandomWordAndShuffle(currentState.language),
-                currentWordCount = currentState.currentWordCount.inc(),
-                isGameOver = currentState.currentWordCount >= currentState.levelGame
-            )
-        }
-    }
-
-    fun showSettings() {
-        _uiState.update { currentState ->
-            currentState.copy(
-                isSettingsDialogVisible = true,
-            )
-        }
-    }
-
-    fun hideSettings() {
-        _uiState.update { currentState ->
-            currentState.copy(
-                isSettingsDialogVisible = false,
-            )
-        }
-    }
-
-    // Ejemplo de actualización
-    /*
-    init {
-        _uiState.update {
-            it.copy(count = it.count+1)
-        }
-    }
-    */
 }
