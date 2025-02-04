@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import com.example.unscramble.datamodel.GameModel
 import com.example.unscramble.datamodel.WordModel
 
-@Database(entities = [GameModel::class, WordModel::class], version = 1, exportSchema = false)
+@Database(entities = [GameModel::class, WordModel::class], version = 2, exportSchema = false)
 abstract class UnscrambleDatabase : RoomDatabase() {
 
     abstract fun gamesDAO(): GamesDAO
@@ -20,6 +20,7 @@ abstract class UnscrambleDatabase : RoomDatabase() {
             // if the Instance is not null, return it, otherwise create a new database instance.
             return Instance ?: synchronized(this) {
                 Room.databaseBuilder(context, UnscrambleDatabase::class.java, "unscramble_database")
+                    .fallbackToDestructiveMigration() // Cuando se realice un cambio en la base de datos, se borran los datos
                     .build()
                     .also { Instance = it }
             }

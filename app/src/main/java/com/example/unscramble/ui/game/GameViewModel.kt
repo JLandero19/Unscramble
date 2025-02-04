@@ -1,6 +1,8 @@
 package com.example.unscramble.ui.Game
 
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -17,37 +19,39 @@ import com.example.unscramble.data.UserPreferences
 import com.example.unscramble.data.UserPreferencesRepository
 import com.example.unscramble.data.allSpanishWords
 import com.example.unscramble.data.allWords
-import com.example.unscramble.datamodel.WordModel
-import com.example.unscramble.localdatabase.WordsDAO
+import com.example.unscramble.data.getEnglishWords
+import com.example.unscramble.data.getSpanishWords
+import com.example.unscramble.datamodel.GameModel
+import com.example.unscramble.repository.GamesRepository
 import com.example.unscramble.repository.WordsRepository
 import com.example.unscramble.unscramblerelease.UnscrambleReleaseApplication
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.count
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDateTime
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class GameViewModel(
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val wordsRepository: WordsRepository
+    private val wordsRepository: WordsRepository,
+    private val gamesRepository: GamesRepository,
 ) : ViewModel() {
 
     companion object {
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val application = (this[APPLICATION_KEY] as UnscrambleReleaseApplication)
-                GameViewModel(application.userPreferencesRepository, application.wordsRepository)
+                GameViewModel(application.userPreferencesRepository, application.wordsRepository, application.gamesRepository)
             }
         }
     }
@@ -71,9 +75,6 @@ class GameViewModel(
             initialValue = GameUiState()
         )
      */
-
-    val getEnglishWords : Flow<List<WordModel>> = wordsRepository.getAllWordsByLanguage(Language.ENGLISH.toString())
-    val getSpanishWords : Flow<List<WordModel>> = wordsRepository.getAllWordsByLanguage(Language.SPANISH.toString())
 
 
     //Estado de la interfaz de usuario.
@@ -155,21 +156,12 @@ class GameViewModel(
                         updateState(words.toMutableList(), preferences.language, preferences.levelGame)
                     }
                 }
-            if (wordsRepository.getAllWords.count() <= 0) {
-                // Me inserta en la base de datos las palabras
-                insertWords(allWords)
-                insertWords(allSpanishWords, "es")
-            }
         }
-
-    }
-    // Me inserta las palabras en la base de datos
-    private fun insertWords(allWords: Set<String>, language: String = "en") {
-        viewModelScope.launch {
-            val wordList = allWords.map { WordModel(title = it, language = language) }
-            wordsRepository.insertWordList(wordList)
-        }
-
+        // Solo se ejecuta 1 vez
+//        viewModelScope.launch {
+//            wordsRepository.insertWordList(getEnglishWords())
+//            wordsRepository.insertWordList(getSpanishWords())
+//        }
     }
 
     private fun updateState(wordsGame: MutableList<String>,language: String, levelGame: Int) {
@@ -187,22 +179,33 @@ class GameViewModel(
         Log.d("GameViewModel", uiState.value.toString())
     }
 
-    fun resetGame() {
+    fun resetGame(text: String = "") {
+        val game = GameModel(
+            name = text,
+            date = uiState.value.currentDate,
+            score = uiState.value.score,
+            rightWords = uiState.value.rightWords.joinToString(","),
+            wrongWords = uiState.value.wrongWords.joinToString(","),
+        )
         //updateStateSettings(uiState.value.language, uiState.value.levelGame)
         viewModelScope.launch {
+            gamesRepository.insertGame(game)
             val wordList = wordsRepository.getOnceSomeRandomWordsByLanguage(uiState.value.language, uiState.value.levelGame)
             updateState(wordList.map { it.title }.toMutableList(), uiState.value.language, uiState.value.levelGame)
         }
     }
 
-    private fun updateGameState(updatedScore: Int) {
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun updateGameState(updatedScore: Int, skip: Boolean = false) {
         if (uiState.value.wordsGame.isEmpty()){
-            //Last round in the game, update isGameOver to true, don't pick a new word
             _uiState.update { currentState ->
                 currentState.copy(
                     isGuessedWordWrong = false,
                     score = updatedScore,
-                    isGameOver = true
+                    isGameOver = true,
+                    currentDate = LocalDateTime.now().toString(),
+                    wrongWords = if(skip) currentState.wrongWords.apply { add(currentState.currentWord) } else currentState.wrongWords,
+                    rightWords = if (!skip) currentState.rightWords.apply { add(currentState.currentWord) } else currentState.rightWords,
                 )
             }
         } else {
@@ -214,7 +217,9 @@ class GameViewModel(
                     usedWords = currentState.usedWords.apply { add(nextWord) },
                     currentWord = nextWord,
                     currentScrambledWord = shuffleCurrentWord(nextWord),
-                    score = updatedScore
+                    score = updatedScore,
+                    wrongWords = if(skip) currentState.wrongWords.apply { add(currentState.currentWord) } else currentState.wrongWords,
+                    rightWords = if (!skip) currentState.rightWords.apply { add(currentState.currentWord) } else currentState.rightWords,
                 )
             }
         }
@@ -277,6 +282,8 @@ class GameViewModel(
         userGuess = guessedWord
     }
 
+
+    @RequiresApi(Build.VERSION_CODES.O)
     fun checkUserGuess() {
         if (userGuess.equals(uiState.value.currentWord, ignoreCase = true)) {
             val updatedScore = _uiState.value.score.plus(SCORE_INCREASE)
@@ -291,8 +298,9 @@ class GameViewModel(
         updateUserGuess("")
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     fun skipWord() {
-        updateGameState(_uiState.value.score)
+        updateGameState(_uiState.value.score, true)
         //Borra el texto.
         updateUserGuess("")
     }

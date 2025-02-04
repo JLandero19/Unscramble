@@ -16,6 +16,8 @@
 
 package com.example.unscramble.data
 
+import com.example.unscramble.datamodel.WordModel
+
 const val SCORE_INCREASE = 20
 
 val allWords: Set<String> =
@@ -484,4 +486,12 @@ val allSpanishWords: Set<String> = sortedSetOf(
     "interesante",
     "aburrido"
 )
+
+val getEnglishWords: () -> List<WordModel> = {
+    allWords.map { word -> WordModel(title = word, language = Language.ENGLISH.language) }
+}
+
+val getSpanishWords: () -> List<WordModel> = {
+    allSpanishWords.map { word -> WordModel(title = word, language = Language.SPANISH.language) }
+}
 

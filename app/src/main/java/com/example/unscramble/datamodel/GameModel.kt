@@ -8,6 +8,8 @@ import androidx.room.PrimaryKey
 data class GameModel(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
+    @ColumnInfo(name = "name")
+    val name: String,
     @ColumnInfo(name = "date")
     val date: String,
     @ColumnInfo(name = "score")

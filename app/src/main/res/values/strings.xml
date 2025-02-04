@@ -33,4 +33,5 @@
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
     <string name="no_words_found">No words found</string>
+    <string name="enter_username">Enter username</string>
 </resources>

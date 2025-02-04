@@ -17,6 +17,8 @@ package com.example.unscramble.ui.Game
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -44,7 +46,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -58,7 +59,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -83,6 +83,7 @@ import com.example.unscramble.data.Language
 import com.example.unscramble.data.LevelGame
 import com.example.unscramble.ui.theme.UnscrambleTheme
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun GameScreen(
     gameViewModel: GameViewModel = viewModel(factory = GameViewModel.Factory)
@@ -97,7 +98,8 @@ fun GameScreen(
     if (gameUiState.isGameOver) {
         FinalScoreDialog(
             score = gameUiState.score,
-            onPlayAgain = { gameViewModel.resetGame() }
+            onPlayAgain = { name -> gameViewModel.resetGame(name) },
+            onExitGame = { name -> gameViewModel.resetGame(name) }
         )
     }
 
@@ -128,11 +130,14 @@ fun GameScreen(
             return
         }
 
-        if (gameUiState.wordsGame.size <= 0) {
+        // Miramos si el gameUiState.userMessage tiene un mensaje de error en concreto
+        if (gameUiState.userMessage == UserMessage.ERROR_GETTING_WORDS) {
             Image(
                 painter = painterResource(R.drawable.no_words_found),
                 contentDescription = stringResource(R.string.no_words_found),
-                modifier = Modifier.clip(RoundedCornerShape(16.dp)).size(300.dp)
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .size(300.dp)
            )
         } else {
             Text(
@@ -192,7 +197,11 @@ fun GameScreen(
                         contentDescription = stringResource(R.string.settings)
                     )
                 },
-                modifier = Modifier.align(Alignment.End).padding(16.dp).clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.primaryContainer)
+                modifier = Modifier
+                    .align(Alignment.End)
+                    .padding(16.dp)
+                    .clip(MaterialTheme.shapes.medium)
+                    .background(MaterialTheme.colorScheme.primaryContainer)
             )
         }
     }
@@ -289,10 +298,12 @@ fun GameLayout(
 @Composable
 private fun FinalScoreDialog(
     score: Int,
-    onPlayAgain: () -> Unit,
+    onPlayAgain: (String) -> Unit,
+    onExitGame: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val activity = (LocalContext.current as Activity)
+    var text by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = {
@@ -301,11 +312,41 @@ private fun FinalScoreDialog(
             // onCloseRequest.
         },
         title = { Text(text = stringResource(R.string.congratulations)) },
-        text = { Text(text = stringResource(R.string.you_scored, score)) },
+        text = {
+            Column (
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Text(text = stringResource(R.string.you_scored, score))
+                OutlinedTextField(
+                    value = text,
+                    singleLine = true,
+                    shape = shapes.large,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = colorScheme.surface,
+                        unfocusedContainerColor = colorScheme.surface,
+                        disabledContainerColor = colorScheme.surface,
+                    ),
+                    onValueChange = { text = it },
+                    label = {
+                        Text(stringResource(R.string.enter_username))
+                    },
+                    keyboardOptions = KeyboardOptions.Default.copy(
+                        imeAction = ImeAction.Done
+                    )
+                )
+            }
+
+        },
         modifier = modifier,
         dismissButton = {
             TextButton(
                 onClick = {
+                    onExitGame(text)
                     activity.finish()
                 }
             ) {
@@ -313,7 +354,7 @@ private fun FinalScoreDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onPlayAgain) {
+            TextButton(onClick = { onPlayAgain(text) }) {
                 Text(text = stringResource(R.string.play_again))
             }
         }
@@ -407,6 +448,7 @@ fun SettingsDialog(
 }
 
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Preview(showBackground = true)
 @Composable
 fun GameScreenPreview() {
