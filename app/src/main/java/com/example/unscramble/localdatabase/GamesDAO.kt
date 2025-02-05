@@ -22,6 +22,9 @@ interface GamesDAO {
     @Query("SELECT * from games ORDER BY date")
     fun getAllGames(): Flow<List<GameModel>>
 
+    @Query("SELECT * from games ORDER BY score DESC")
+    fun getRankingGames(): Flow<List<GameModel>>
+
     @Query("DELETE FROM games")
     suspend fun clearGames()
 

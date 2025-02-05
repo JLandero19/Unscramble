@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -77,7 +76,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.rememberNavController
 import com.example.unscramble.R
 import com.example.unscramble.data.Language
 import com.example.unscramble.data.LevelGame
@@ -86,9 +88,9 @@ import com.example.unscramble.ui.theme.UnscrambleTheme
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun GameScreen(
+    navController: NavHostController,
     gameViewModel: GameViewModel = viewModel(factory = GameViewModel.Factory)
 ) {
-
     val mediumPadding = dimensionResource(R.dimen.padding_medium)
     val gameUiState by gameViewModel.uiState.collectAsState()
 
@@ -99,7 +101,10 @@ fun GameScreen(
         FinalScoreDialog(
             score = gameUiState.score,
             onPlayAgain = { name -> gameViewModel.resetGame(name) },
-            onExitGame = { name -> gameViewModel.resetGame(name) }
+            onExitGame = { name ->
+                gameViewModel.resetGame(name)
+                navController.navigate("ranking")
+            }
         )
     }
 
@@ -347,7 +352,6 @@ private fun FinalScoreDialog(
             TextButton(
                 onClick = {
                     onExitGame(text)
-                    activity.finish()
                 }
             ) {
                 Text(text = stringResource(R.string.exit))
@@ -452,7 +456,9 @@ fun SettingsDialog(
 @Preview(showBackground = true)
 @Composable
 fun GameScreenPreview() {
+    // NavController
+    val navController = rememberNavController()
     UnscrambleTheme {
-        GameScreen()
+        GameScreen(navController = navController)
     }
 }

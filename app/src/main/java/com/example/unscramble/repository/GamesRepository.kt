@@ -16,6 +16,8 @@ class GamesRepository(
 
     override val getAllGames: Flow<List<GameModel>> = gamesDAO.getAllGames()
 
+    override val getRankingGames: Flow<List<GameModel>> = gamesDAO.getRankingGames()
+
     override suspend fun clearGames() = gamesDAO.clearGames()
 
 }

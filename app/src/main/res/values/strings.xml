@@ -34,4 +34,8 @@
     <string name="cancel">Cancel</string>
     <string name="no_words_found">No words found</string>
     <string name="enter_username">Enter username</string>
+    <string name="rank">%d</string>
+    <string name="name_rank">Name</string>
+    <string name="score_rank">Score</string>
+    <string name="ranking">Ranking</string>
 </resources>

@@ -12,5 +12,7 @@ interface GamesInterface {
 
     val getAllGames: Flow<List<GameModel>>
 
+    val getRankingGames: Flow<List<GameModel>>
+
     suspend fun clearGames()
 }
