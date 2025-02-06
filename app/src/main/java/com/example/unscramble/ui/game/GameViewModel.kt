@@ -197,10 +197,6 @@ class GameViewModel(
         }
     }
 
-    suspend fun rankingGames(): List<GameModel> {
-        return gamesRepository.getRankingGames.first()
-    }
-
     @RequiresApi(Build.VERSION_CODES.O)
     private fun updateGameState(updatedScore: Int, skip: Boolean = false) {
         if (uiState.value.wordsGame.isEmpty()){
